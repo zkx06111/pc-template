@@ -1,0 +1,817 @@
+---
+title: Template
+date: 2017-03-24 00:00:00
+tags: template
+---
+
+## 图论
+
+### 最小割树
+```c++
+void addedge(int x, int y, int z){
+    sume++; e[sume] = (Edge){x, y, z, z, first[x]}; first[x] = sume;
+}
+void resetflow(){FORP(i, 1, sume) e[i].cap = e[i].bak;}
+void resetgraph(){sume = 0; memset(first, 0, sizeof(first)); memset(e, 0, sizeof(e));}
+bool bfs(){
+    memset(vis, false, sizeof(vis));
+    memset(d, 0x7f, sizeof(d));
+    vis[S] = true; d[S] = 0;
+    int head = 1, tail = 1;
+    q[head] = S;
+    while (head <= tail){
+        int now = q[head++]; 
+        for (int i = first[now]; i; i = e[i].next)
+            if (!vis[e[i].to] && e[i].cap){
+                d[e[i].to] = d[now] + 1;
+                q[++tail] = e[i].to; vis[e[i].to] = true;
+            }
+    }
+    return vis[T];
+}
+int dfs(int now, int a){
+    if (now == T || !a) return a;
+    int f, flow = 0;
+    for (int &i = cur[now]; i; i = e[i].next)
+        if (d[now] + 1 == d[e[i].to] && (f = dfs(e[i].to, min(a, e[i].cap))) > 0){
+            flow += f; a -= f; e[i].cap -= f, e[i^1].cap += f;
+            if (!a) break;
+        }
+    return flow;
+}
+int dinic(){
+    int flow = 0;
+    while(bfs()){
+        FORP(i, 0, n) cur[i] = first[i];
+        flow += dfs(S, INF);
+    }
+    return flow;
+}
+void build(){
+    FORP(i, 2, n) fa[i][0] = 1;
+    FORP(i, 2, n){
+        resetflow();
+        S = i, T = fa[i][0];
+        v[i] = dinic();
+        bfs();
+        FORP(j, i + 1, n) if (vis[j] && fa[j][0] == fa[i][0]) fa[j][0] = i;
+    }
+    resetgraph();
+    FORP(i, 2, n) addedge(i, fa[i][0], v[i]), addedge(fa[i][0], i, v[i]),g[i][0] = v[i];
+}
+```
+要么都是比较裸的题目要么代替全局最小割的算法来操点暴力分
+
+### 连通性
+#### 带花树
+```c++
+int n, m, sume;
+struct Edge{
+    int to, next;
+}e[maxm];
+int first[maxn];
+int match[maxn], v[maxn], fa[maxn];
+int head, tail;
+int q[maxn];
+int c1[maxn], c2[maxn], par[maxn], vis[maxn];
+inline void addedge(int x, int y){sume++; e[sume] = (Edge){y, first[x]}; first[x] = sume;}
+inline int find(int x){return x == fa[x] ? x : fa[x] = find(fa[x]);}
+inline void Union(int x, int y){fa[x] = y;}
+inline void path(int x, int r){
+    if (x == r) return;
+    if (vis[x] == 2){
+        path(par[match[x]], r); 
+        int u = match[x], v = par[u];
+        match[u] = v; match[v] = u;
+    }
+    else{
+        path(c1[x], match[x]);
+        path(c2[x], r);
+        match[c1[x]] = c2[x];
+        match[c2[x]] = c1[x];
+    }
+}
+inline int lca(int x, int y, int r){
+    int i = find(x), j = find(y);
+    while (i != j && v[i] != 2 && v[j] != 1){
+        v[i] = 1, v[j] = 2;
+        if (i != r) i = find(par[i]);
+        if (j != r) j = find(par[j]);
+    }
+    int tmpi = i, tmpj = j; if (v[j] == 1) swap(tmpi, tmpj);
+    for (int i = tmpi; i != tmpj; i = find(par[i])) v[i] = 0;
+    v[tmpj] = 0;
+    return tmpi;
+}
+inline void contract(int x, int y, int b){
+    for (int i = find(x); i != b; i = find(par[i])){
+        Union(i, b);
+        if (vis[i] == 1) c1[i] = x, c2[i] = y, q[++tail] = i;
+    }
+}
+inline bool BFS(int r){
+    memset(v, 0, sizeof(v));
+    memset(vis, 0, sizeof(vis));
+    FORP(i, 0, n) fa[i] = i;
+    q[head = tail = 1] = r;
+    while (head <= tail){
+        int x = q[head++];
+        for (int i = first[x]; i; i = e[i].next){
+            int y = e[i].to;
+            if (match[y] == x || find(x) == find(y)) continue;
+            if (!vis[y]){
+                if (!match[y]){
+                    path(x, r);
+                    match[x] = y; match[y] = x;
+                    return true;
+                }
+                else{
+                    par[y] = x; par[match[y]] = y;
+                    vis[y] = 1; vis[match[y]] = 2;
+                    q[++tail] = match[y];
+                }
+            }
+            else if (vis[find(y)] == 2){
+                int b = lca(x, y, r);
+                contract(x, y, b);
+                contract(y, x, b);
+            }
+        }
+    }
+    return false;
+}
+int main(){
+    while (scanf("%d%d",&n, &m) != EOF){
+        int sume = 0; memset(first, 0, sizeof(first));
+        memset(match, 0, sizeof(match));
+        FORP(i, 1, m) {
+            int x, y;
+            read(x); read(y);
+            if (!match[x] && !match[y]) match[x] = y, match[y] = x;
+            addedge(x, y); addedge(y, x);
+        }
+        int res = 0;
+        FORP(i, 1, n) if (!match[i]) BFS(i);
+        FORP(i, 1, n) if (match[i]) res++;
+        write(n - res/2 - 1,'\n');
+    }
+}
+
+```
+#### 强联通分量
+```c++
+void addedge(int x,int y){
+    sume++; e[sume].to=y; e[sume].next=first[x]; first[x]=sume;
+}
+void tarjan(int u){
+    dfn[u]=low[u]=(++clo);
+    s[++top]=u;
+    instack[u]=true;
+    for (int i=first[u];i;i=e[i].next){
+        int y=e[i].to;
+        if (!dfn[y]){
+            tarjan(y);
+            low[u]=min(low[u],low[y]);
+        }
+        else if (instack[y]) low[u]=min(dfn[y],low[u]);
+    }
+    if (low[u]==dfn[u]){
+        scc++;
+        while (true){
+            int v=s[top--];
+            belong[v]=scc;
+            instack[v]=false;
+            sz[scc]++;
+            if (v==u) break;
+        }
+    }
+}
+void rebuild(){
+    int cnt=0;
+    FORP(i,1,n){
+        for (int j=first[i];j;j=e[j].next){
+            int v=e[j].to;
+            if (belong[i]!=belong[v]){
+                //----------addedge
+                cnt++;
+                d[cnt].to=belong[v];
+                d[cnt].next=head[belong[i]];
+                head[belong[i]]=cnt;
+                //---------------------*/
+            }
+        }
+    }
+}
+```
+#### 边双联通分量
+```c++
+void addedge(int x,int y){
+    sume++; to[sume]=y; next[sume]=first[x]; first[x]=sume;
+}
+void tarjan(int u,int fa){
+    low[u]=dfn[u]=(++clo);
+    instack[u]=1;
+    s[++top]=u;
+    for (int i=first[u];i;i=next[i]){
+        if (i==(fa^1)) continue;
+        int v=to[i];
+        if (!dfn[v]){
+            tarjan(v,i);
+            low[u]=min(low[u],low[v]);
+        }
+        else if (instack[v]) low[u]=min(low[u],dfn[v]);
+    }
+    if (dfn[u]==low[u]){
+        scc++;
+        while (true){
+            int v=s[top--];
+            instack[v]=false;
+            belong[v]=scc;
+            if (v==u) break;
+        }
+    }
+}
+```
+实际上只要找到每条桥删掉以后再染色就可以了
+点双和上面差不多? dfn, low随便玩玩
+
+### 2-SAT(填坑)
+### Kruskal重构树
+现在回来看看感觉有点像最小割树?
+我们Kruskal连边时并不直接连边 而是新建一个节点ext 将两个点所在子树都连到ext的儿子上
+几个性质再复习一下:
+1. 二叉树(好吧这题意义不大)
+2. 原树与新树两点间路径上边权(点权)的最大值相等
+3. 子节点的边权小于等于父亲节点(大根堆)
+4. 原树中两点之间路径上边权的最大值等于新树上两点的LCA的点权
+
+代码来自BZOJ3732:
+```c++
+int n,m,k;
+struct Edge{
+    int x,y,v;
+    bool operator < (const Edge &k) const{
+        return v < k.v;
+    }
+}e[maxn];
+int dis[maxn],belong[maxn],size[maxn],fa[maxn],depth[maxn];
+
+int find(int x){
+    if (!belong[x]) belong[x] = x, size[x] = 1;
+    return belong[x] == x ? x : (belong[x] = find(belong[x]));
+}
+int dfs(int x){
+    if (depth[x]) return depth[x];
+    if (!fa[x]) return depth[x] = 1;
+    return depth[x] = dfs(fa[x]) + 1;
+}
+void init(){
+    memset(fa,0,sizeof(fa));
+    memset(dis,0,sizeof(dis));
+    memset(size,0,sizeof(size));
+    memset(depth,0,sizeof(depth));
+    read(n); read(m); read(k);
+    FORP(i,1,m){read(e[i].x); read(e[i].y); read(e[i].v);}
+}
+void work(){
+    sort(e + 1, e + 1 + m);
+    FORP(i, 1, m){
+        int x = find(e[i].x), y = find(e[i].y);
+        if (x == y) continue;
+        if (size[x] > size[y]) swap(x,y);
+        belong[x] = y; size[y] = max(size[y],size[x] + 1);
+        fa[x] = y; dis[x] = e[i].v;
+    }
+    FORP(i, 1, n) dfs(i);
+    FORP(i, 1, k){
+        int x,y; read(x); read(y);
+        int ans = 0;
+        if (depth[x] < depth[y]) swap(x, y);
+        while(depth[x] > depth[y]) ans = max(ans, dis[x]), x = fa[x];
+        while (x != y) ans = max(max(ans,dis[x]),dis[y]), x = fa[x], y = fa[y]; 
+        write(ans,'\n');
+    }
+}
+```
+
+一旦我把很多东西都归到了数据结构这里就没有什么东西了...
+
+## 数据结构
+### 线段树 &　树状数组
+...
+### 平衡树
+只会splay... 不要给我出什么可持久化!!!
+splay的一些基础操作
+```c++
+void pushdown(int x){
+    if (!flip[x]) return;
+    flip[x]=0;
+    flip[getlc(x)]^=1; flip[getrc(x)]^=1;
+    swap(ch[x][0],ch[x][1]);
+}
+ 
+void rotate(int x){
+    int p=fa[x],q=fa[p],d=ch[p][1]==x;
+    pushdown(x);
+    fa[ch[p][d]=ch[x][d^1]]=p; updata(p);
+    fa[ch[x][d^1]=p]=x; updata(x);
+    fa[x]=q;
+    if (q){
+        if (ch[q][0]==p) ch[q][0]=x;
+        else if(ch[q][1]==p) ch[q][1]=x;
+    }
+}
+void splay(int x,int &aim){
+    for(int y;(y=fa[x])!=aim;rotate(x))
+    if (fa[y]!=aim) rotate((getlc(y)==x)==(getrc(fa[y])==y)?y:x);
+    if (aim==0) root=x;    
+    updata(x);
+}
+inline void del(int x){ //删点
+    splay(x,0);
+    if (ch[x][0] == 0) {root = ch[x][1], ch[x][1] = fa[root] = 0; pushup(root); return;}
+    if (ch[x][1] == 0) {root = ch[x][0]; ch[x][0] = fa[root] = 0; pushup(root); return;}
+    x =  ch[root][0];
+    while (x) {pushdown(x); int &y = ch[x][1]; if (y == 0) break; x = y;}
+    splay(x, root);
+    ch[x][1] = ch[root][1]; fa[ch[x][1]] = x;
+    sz[x] = sz[root] - 1; sz[root] = 1; ch[root][0] = ch[root][1] = 0;
+    fa[x] = 0, root = x;
+    pushup(root);
+}
+ull get(int l, int r){//取出一段子区间
+    l --; r ++;
+    l = kth(l); r = kth(r);
+//  check(root); puts("");
+    splay(l, 0);
+    splay(r, l);
+    //check(root);
+    //puts("");
+    return sum[ch[r][0]];
+}
+int kth(int node,int k){ //第k大
+    int x=node;
+    while (x){
+        pushdown(x);
+        int ss=0;
+        if (ch[x][0]!=0) ss=s[ch[x][0]];
+        if (k==ss+1) return x;
+        if (k<=ss) x=ch[x][0];
+            else if (k>ss+1) x=ch[x][1],k-=ss,k--;
+    }
+}
+void change(int l,int r){
+    int node=kth(root,l); splay(node,null);
+    node=kth(getrc(root),r-l+2); splay(node,root);
+     
+    int t=getlc(getrc(root));
+    flip[t]^=1;
+    getlc(getrc(root))=0; updata(getrc(root)); updata(root);
+     
+    int k=s[root]-2;
+    node=kth(root,k+1); splay(node,null);
+    node=kth(getrc(root),1); splay(node,root);
+ 
+    fa[t]=getrc(root); getlc(getrc(root))=t;
+    updata(getrc(root)); updata(root);
+}
+```
+
+
+### 可持久化
+#### 可持久化线段树
+...
+#### 可持久化Trie
+来自BZOJ4103
+```c++
+struct Tree{  
+    struct node{int size,son[2];}t[maxt];  
+    int tot, root[maxm], a[maxm], t1[maxn], t2[maxn];  
+    int newnode(){return ++tot;}  
+    void insert(int id,int val){  
+        root[id] = newnode(); t[root[id]].size = t[root[id - 1]].size + 1;  
+        int now = root[id],pre = root[id - 1];  
+        for (int j = 31, v; j >= 0; j--){  
+            v = (val >> j) & 1; t[now].son[v] = newnode();  
+            t[t[now].son[v]].size = t[t[pre].son[v]].size + 1;  
+            t[now].son[v ^ 1] = t[pre].son[v ^ 1];  
+            now = t[now].son[v], pre = t[pre].son[v];  
+        }  
+    }  
+    void query(int u,int d,int l,int r,int rank){  
+        FORP(i, u, d) t1[i] = root[l - 1], t2[i] = root[r];  
+        int res = 0;  
+        for (int k = 31; k >= 0; k--){  
+            int sum = 0;  
+            for (int i = u; i <= d; i++){  
+                int v = (x[i] >> k) & 1;
+                sum += t[t[t2[i]].son[v ^ 1]].size - t[t[t1[i]].son[v ^ 1]].size;  
+            }  
+            if (rank <= sum){  
+                for (int i = u; i <= d; i++){  
+                    int v = (x[i] >> k) & 1;  
+                    t1[i] = t[t1[i]].son[v ^ 1], t2[i] = t[t2[i]].son[v ^ 1];  
+                }  
+                res |= (1<<k);  
+            }  
+            else{  
+                for (int i = u; i <= d; i++){  
+                    int v = (x[i] >> k) & 1;  
+                    t1[i] = t[t1[i]].son[v], t2[i] = t[t2[i]].son[v];  
+                }  
+                rank -= sum;  
+            }  
+        }  
+        printf("%d\n",res);  
+    }  
+}Trie;  
+```
+
+#### 可持久化并查集(留坑)
+
+### 树套树(这种东西要模板也没用啊)
+
+### 点分治
+来自BZOJ 1468
+```c++
+const int N=40005;
+int ihead[N], cnt, K;
+struct Edge{
+    int next, to, w;
+}e[N<<1];
+void add(int u, int v, int w) {
+    e[++cnt].next=ihead[u]; ihead[u]=cnt; e[cnt].to=v; e[cnt].w=w;
+    e[++cnt].next=ihead[v]; ihead[v]=cnt; e[cnt].to=u; e[cnt].w=w;
+}
+  
+int dep[N], d[N], cdep, ans, mn;
+int root, sz[N], vis[N];
+void getroot(int x, int fa, int sum) {
+    sz[x]=1; int y, mx=0;
+    rdm(x, i) if(!vis[y=e[i].to] && e[i].to!=fa) {
+        getroot(y, x, sum);
+        sz[x]+=sz[y];
+        mx=max(mx, sz[y]);
+    }
+    mx=max(mx, sum-mx);
+    if(mx<mn) mn=mx, root=x;
+}
+void getdep(int x, int fa) {
+    dep[++cdep]=d[x]; int y; //printf("x:%d\tfa:%d\tdep:%d\n", x, fa, dep[x]);
+    rdm(x, i) if(!vis[y=e[i].to] && e[i].to!=fa) {
+        d[y]=d[x]+e[i].w;
+        getdep(y, x);
+    }
+}
+int cal(int x, int last=0) {
+    cdep=0; d[x]=last;
+    getdep(x, -1);
+    int ret=0, front=1, tail=cdep;
+    sort(dep+1, dep+1+cdep);
+    while(front<tail) {
+        while(front<tail && dep[tail]+dep[front]>K) --tail;
+        ret+=tail-front;
+        ++front;
+    }
+    return ret;
+}
+void dfs(int x, int all) {
+    vis[x]=1; int y;
+    ans+=cal(x); //printf("root:%d\n", x);
+    rdm(x, i) if(!vis[y=e[i].to]) {
+        ans-=cal(y, e[i].w);
+        int s=sz[y]>sz[x]?all-sz[x]:sz[y];
+        root=0; mn=INF; getroot(y, x, s);
+        dfs(root, s);
+    }
+}
+  
+int main() {
+    int n; read(n);
+    FORP(i,1,n-1) {
+        int u,v,w;
+        read(u); read(v); read(w);
+        add(u,v,w);
+    }
+    read(K); mn=INF;
+    getroot((n+1)>>1, -1, n);
+    dfs(root, n);
+    printf("%d\n", ans);
+    return 0;
+}
+```
+### 虚树
+来自世界树
+```c++
+bool cmp(const int &x, const int &y) {return dfn[x] < dfn[y];}
+int find(int x, int d) {
+    for (int i = 19; i >= 0; --i)
+        if (dep[f[x][i]] >= d)  x = f[x][i];
+    return x;
+}
+int lca(int x, int y) {
+    if (dep[x] < dep[y]) swap(x, y);
+    for (int i = 19; i >= 0; --i)
+        if (dep[f[x][i]] >= dep[y]) x = f[x][i];
+    if (x == y) return x;
+    for (int i = 19; i >= 0; --i)
+        if (f[x][i] != f[y][i]) x = f[x][i], y = f[y][i];
+    return f[x][0];
+}
+void dfs(int u) {
+    sz[u] = 1;
+    dfn[u] = ++ind;
+    for (int i = 0, v; i < g[u].size(); ++i) {
+        v = g[u][i];
+        if (v == f[u][0])   continue;
+        f[v][0] = u;
+        for (int j = 1; j <= 19; ++j)   f[v][j] = f[f[v][j - 1]][j - 1];
+        dep[v] = dep[u] + 1;
+        dfs(v);
+        sz[u] += sz[v];
+    }
+}
+void build(int m) {
+    int top = 0;
+    sort(h + 1, h + m + 1, cmp);
+    for (int i = 1; i <= m; ++i) {
+        if (!top)   fa[st[++top] = h[i]] = 0;
+        else {
+            int x = lca(st[top], h[i]);
+            for (; dep[st[top]] > dep[x]; --top)
+                if (dep[st[top - 1]] <= dep[x]) fa[st[top]] = x;
+            if (st[top] != x) {
+                fa[x] = st[top];
+                t[++tot] = st[++top] = x;
+                near[x] = mp(0x3f3f3f3f, 0);
+            }
+            fa[st[++top] = h[i]] = x;
+        }
+    }
+}
+void work() {
+    tot = 0;
+    int m;
+    read(m);
+    FORP(i, 1, m){
+        read(h[i]);
+        t[++tot] = pos[i] = h[i], ans[h[i]] = 0, near[h[i]] = mp(0, h[i]);
+    }
+    build(m);
+    sort(t + 1, t + tot + 1, cmp);
+    for (int i = 1; i <= tot; ++i) {
+        int x = t[i];
+        w[x] = sz[x];
+        if (i > 1)  dis[x] = dep[x] - dep[fa[x]];
+    }
+    for (int i = tot; i > 1; --i) {
+        int x = t[i];
+        near[fa[x]] = min(near[fa[x]], mp(near[x].F + dis[x], near[x].S));
+    }
+    for (int i = 2; i <= tot; ++i) {
+        int x = t[i];
+        near[x] = min(near[x], mp(near[fa[x]].F + dis[x], near[fa[x]].S));
+    }
+    for (int i = 1; i <= tot; ++i) {
+        int x = t[i];
+        if (i == 1) ans[near[x].S] += n - sz[x];
+        else {
+            int rt = find(x, dep[fa[x]] + 1);
+            int sum = sz[rt] - sz[x];
+            w[fa[x]] -= sz[rt];
+            if (near[fa[x]].S == near[x].S) ans[near[x].S] += sum;
+            else {
+                int mid = dep[x] - (near[fa[x]].F - near[x].F + dis[x]) / 2;
+                if ((near[fa[x]].F + near[x].F + dis[x]) % 2 == 0 && near[fa[x]].S < near[x].S) ++mid;
+                int tmp = sz[find(x, mid)] - sz[x];
+                ans[near[fa[x]].S] += sum - tmp;
+                ans[near[x].S] += tmp;
+            }
+        }
+    }
+    for (int i = 1; i <= tot; ++i)  ans[near[t[i]].S] += w[t[i]];
+    for (int i = 1; i <= m; ++i)    write(ans[pos[i]],' ');
+    puts("");
+}
+void gao() {
+    read(n);
+    for (int i = 1, u, v; i < n; ++i) {
+        read(u); read(v);
+        g[u].pb(v), g[v].pb(u);
+    }
+    dfs(dep[1] = 1);
+    int q;
+    scanf("%d", &q);
+    while (q--) work();
+}
+```
+
+
+## 数学
+### 多项式
+#### FWT
+几个操作并在了一起. 手推推还是好推的吧...
+```c++
+const int inv = 500000004;
+void fwtand(int n, int *a){
+    for (int i = 2; i <= n; i <<= 1){
+        int m = i >> 1;
+        for (int j = 0; j < n; j += i)
+            for (int k = 0; k < m; k++){
+                a[j + k] = (a[j + k] + a[j + m + k]) % MOD;
+            }
+    }
+}
+void ifwtand(int n, int *a){
+    for (int i = 2; i <= n; i <<= 1){
+        int m = i >> 1;
+        for (int j = 0; j < n; j+= i)
+            for (int k = 0; k < m; k ++){
+                a[j + k] = (a[j + k] - a[j + m + k] + MOD) % MOD;
+            }
+    }
+}
+void fwtor(int n, int *a){
+    for (int i = 2; i <= n; i <<= 1){
+        int m = i >> 1;
+        for (int j = 0; j < n; j += i)
+            for (int k = 0; k < m; k++) a[j + m + k] = (a[j + k] + a[j + m + k])% MOD;
+    }
+}
+void ifwtor(int n, int *a){
+    for (int i = 2; i <= n; i <<= 1){
+        int m = i >> 1;
+        for (int j = 0; j < n; j += i)
+            for (int k = 0; k < m; k ++) a[j + m + k] = (a[j + m + k] - a[j + k] + MOD)%MOD;
+    }
+}
+void fwtxor(int n, int *a){
+    for (int i = 2; i <= n; i <<= 1){
+        int m = i >> 1;
+        for (int j = 0; j < n; j += i)
+            for (int k = 0; k < m; k++){
+                int tmp = a[j + k];
+                a[j + k] = (a[j + k] + a[j + m + k]) % MOD;
+                a[j + m + k] = (tmp - a[j + m + k] + MOD) % MOD;
+        }
+    }
+}
+void ifwtxor(int n, int *a){
+    for (int i = 2; i <= n; i <<= 1){
+        int m = i >> 1;
+        for (int j = 0; j < n; j += i)
+            for (int k = 0; k < m; k++){
+                int tmp = a[j + k];
+                a[j + k] = 1ll * (a[j + k] + a[j + m + k]) % MOD * inv % MOD;
+                a[j + m + k] = 1ll * (tmp - a[j + m + k] + MOD) % MOD * inv % MOD;
+            }
+    }
+}
+```
+#### 多项式求逆
+```c++
+struct Polynomial{
+    int deg;
+    int x[maxn];
+}C, G, Temp, inv_G;
+inline void INV(int deg, Polynomial &B, Polynomial &A, Polynomial &tmp){
+    if (deg == 1){
+        B.deg = 1;
+        B.x[0] = fpow(A.x[0], MOD - 2);
+        return ;
+    }
+    INV((deg + 1) >> 1, B, A, tmp);
+    int p = 1;
+    while (p < deg << 1) p <<= 1;
+    copy(A.x, A.x + deg, tmp.x);
+    fill(tmp.x + deg, tmp.x + p, 0);
+    fft(p, tmp.x, w);
+    fft(p, B.x, w);
+    FORP(i, 0, p - 1) B.x[i] = (ll)1ll * (2 - 1ll * tmp.x[i] * B.x[i] % MOD + MOD) * B.x[i] % MOD;
+    fft(p, B.x, inv); ll down = fpow(p, MOD - 2);
+    FORP(i, 0, p - 1) B.x[i] = 1ll * B.x[i] * down % MOD;
+    fill(B.x + deg, B.x + p, 0);
+    B.deg = deg;
+}
+```
+
+### 数论
+#### 线性筛
+
+#### BSGS
+```c++
+#define mod 140345
+int head[mod+10];
+ll c,a,b,ans;
+int cnt;
+struct node{
+    int from,to,next;
+    ll val;
+}edge[mod+10];
+void edgeadd(int from,int to,ll val){
+    edge[cnt].from=from,edge[cnt].to=to,edge[cnt].val=val;
+    edge[cnt].next=head[from];
+    head[from]=cnt++;
+}
+void BSGS(int A,int B,int C){
+    //A^x=B(mod C);
+    int m=(int)ceil(sqrt(C));
+    ll k=1;
+    edgeadd(1,0,1);
+    for(int i=1;i<m;i++){
+        k=(k*A)%C;
+        int flag=0;
+        for(int j=head[k%mod];j!=-1;j=edge[j].next){
+            int val=edge[j].val;
+            if(val==k){flag=1;break;}
+        }
+        if(!flag)edgeadd(k%mod,i,k);
+    }
+    k=(k*A)%C;
+    ll D=1;
+    ll inv=get_inv(D,C-2);
+    ll tmp=B*inv%C;
+    ans=-1;
+    for(int j=head[tmp%mod];j!=-1;j=edge[j].next){
+        int val=edge[j].val;
+        if(val==tmp){ ans=edge[j].to; break;}
+    }
+    if(ans!=-1){printf("%lld\n",ans);return;}
+    for(int i=1;i<=m;i++){
+        D=D*k%C;
+        inv=get_inv(D,C-2);
+        tmp=B*inv%C;
+        for(int j=head[tmp%mod];j!=-1;j=edge[j].next){
+            int val=edge[j].val;
+            if(val==tmp) { ans=edge[j].to+i*m; break;}
+        }
+        if(ans!=-1){printf("%lld\n",ans);return;}
+    }
+}
+```
+
+## 乱七八糟的一些
+### 单纯形
+
+包括了输出一组合法解的单纯形
+```c++
+double v, c[maxn], b[maxn], a[maxn][maxn];
+int n, m, t, idx[maxn], idy[maxn];
+int rand(int x){return x % 17;}
+void pivot(int l, int e){
+    swap(idy[l], idx[e]);
+    b[l] /= a[l][e];
+    FORP(i, 1, n) if (i != e) a[l][i] /= a[l][e];
+    a[l][e] = 1 / a[l][e];
+    FORP(i, 1, m)
+        if (i != l && fabs(a[i][e]) > eps){
+            b[i] -= a[i][e] * b[l];
+            FORP(j, 1, n) if (j != e) a[i][j] -= a[i][e] * a[l][j];
+            a[i][e] = -(a[i][e] * a[l][e]);
+        }
+    v += c[e] * b[l];
+    FORP(i, 1, n) if (i != e) c[i] -= c[e] * a[l][i];
+    c[e] = -(c[e] * a[l][e]);
+}
+bool init(){
+    while (true){
+        int l = 0, e = 0;
+        FORP(i, 1, m) if (b[i] < -eps && (!l || rand()&1)) l = i;
+        if (!l) break;
+        FORP(i, 1, n) if (a[l][i] < -eps && (!e || rand()&1)) e = i;
+        if (!e) { puts("Infeasible"); return false;}
+        pivot(l, e);
+    }
+    return true;
+}
+bool simplex(){
+    int l = 0, e = 0; bool flag;
+    while (true){
+        flag = false;
+        double mx = eps;
+        e = l = 0;
+        FORP(i, 1, n) if (c[i] > mx) {mx = c[i]; e = i;}
+        if (!e) return true;
+        double tmp = 1e60;
+        FORP(i, 1, m) if (a[i][e] > eps && b[i] < a[i][e] * tmp) {tmp = b[i] / a[i][e], l = i;}
+        if (!l) return false;
+        pivot(l, e);
+    }
+}
+double Ans[maxn];
+int main(){
+    fin("uoj179.in");
+    read(n); read(m); read(t);
+    FORP(i, 1, n) {scanf("%Lf",&c[i]); idx[i] = i;}
+    FORP(i, 1, m){
+        FORP(j, 1, n) scanf("%Lf",&a[i][j]); scanf("%Lf",&b[i]); idy[i] = n + i;
+    }
+    if (!init()) return 0;
+    if (!simplex()) {puts("Unbounded"); return 0;}
+    printf("%.10Lf\n",v);
+    if (t){
+        FORP(i, 1, m) if(idy[i] <= n) Ans[idy[i]] = b[i];
+        FORP(i, 1, n) printf("%.10Lf ", Ans[i]);
+    }
+}
+```
