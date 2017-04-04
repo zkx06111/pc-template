@@ -1,2 +1,2 @@
-# acm-template
-Carefully implemented templates to use in ACM contests.
+# pc-template
+Carefully implemented templates to use in programming contests.
